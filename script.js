@@ -1,10 +1,3 @@
-/*--------------------------------------------------------------------
-GGR472 LAB 4: Incorporating GIS Analysis into web maps using Turf.js 
---------------------------------------------------------------------*/
-
-/*--------------------------------------------------------------------
-Step 1: INITIALIZE MAP
---------------------------------------------------------------------*/
 // Define access token
 mapboxgl.accessToken = 'pk.eyJ1IjoibXVoYW1tYWRraGFsaXMyMDAwIiwiYSI6ImNtNmllbGt4cjA3cGwycXEyaHA0bDcycWwifQ.hrpqSf6zeg2T5GCfRlygWg';
 
@@ -12,48 +5,99 @@ mapboxgl.accessToken = 'pk.eyJ1IjoibXVoYW1tYWRraGFsaXMyMDAwIiwiYSI6ImNtNmllbGt4c
 const map = new mapboxgl.Map({
     container: 'map', // container id in HTML
     style: 'mapbox://styles/muhammadkhalis2000/cm6yk8amv00kb01s16rkt56d2',  // ****ADD MAP STYLE HERE *****
-    center: [-79.39, 43.65],  // starting point, longitude/latitude
-    zoom: 11 // starting zoom level
+    center: [-79.38379609087877, 43.72014961698346],  // starting point, longitude/latitude
+    zoom: 10 // starting zoom level
 });
 
+let pedcyc
+const pedcycLookup = {};
 
-/*--------------------------------------------------------------------
-Step 2: VIEW GEOJSON POINT DATA ON MAP
---------------------------------------------------------------------*/
-//HINT: Create an empty variable
-//      Use the fetch method to access the GeoJSON from your online repository
-//      Convert the response to JSON format and then store the response in your new variable
+fetch('https://raw.githubusercontent.com/mkbs-mkbs2000/Collisions-in-Toronto/refs/heads/main/data/pedcyc_collision_06-21.geojson')
+    .then(response => response.json())
+    .then(response => {
+        pedcyc = response;
+        pedcyc.features.forEach(feature => {
+            pedcycLookup[feature.properties._id] = feature;
+    });
+});
 
+map.on('load', () => {
 
+    var polygon = turf.envelope(pedcyc);
+    var rescaled = turf.transformScale(polygon, 1.05);
+    var hexgrid = turf.hexGrid(
+        [
+            rescaled.geometry.coordinates[0][0][0],
+            rescaled.geometry.coordinates[0][0][1],
+            rescaled.geometry.coordinates[0][2][0],
+            rescaled.geometry.coordinates[0][2][1]
+        ],
+        0.5, {units: 'kilometers'});
 
-/*--------------------------------------------------------------------
-    Step 3: CREATE BOUNDING BOX AND HEXGRID
---------------------------------------------------------------------*/
-//HINT: All code to create and view the hexgrid will go inside a map load event handler
-//      First create a bounding box around the collision point data
-//      Access and store the bounding box coordinates as an array variable
-//      Use bounding box coordinates as argument in the turf hexgrid function
-//      **Option: You may want to consider how to increase the size of your bbox to enable greater geog coverage of your hexgrid
-//                Consider return types from different turf functions and required argument types carefully here
+    let overall = turf.collect(hexgrid, pedcyc, '_id', 'collisions');
+    console.log(overall);
 
+    let maxtotal = 0;
+    let maxmajor = 0;
+    let maxfatal = 0;
 
+    overall.features.forEach(feature => {
 
-/*--------------------------------------------------------------------
-Step 4: AGGREGATE COLLISIONS BY HEXGRID
---------------------------------------------------------------------*/
-//HINT: Use Turf collect function to collect all '_id' properties from the collision points data for each heaxagon
-//      View the collect output in the console. Where there are no intersecting points in polygons, arrays will be empty
+        feature.properties.COUNT = feature.properties.collisions.length;
 
+        feature.properties.NONE = 0;
+        feature.properties.MINOR = 0;
+        feature.properties.MAJOR = 0;
+        feature.properties.FATAL = 0;
 
+        feature.properties.collisions = feature.properties.collisions.map(id => pedcycLookup[id]);
 
-// /*--------------------------------------------------------------------
-// Step 5: FINALIZE YOUR WEB MAP
-// --------------------------------------------------------------------*/
-//HINT: Think about the display of your data and usability of your web map.
-//      Update the addlayer paint properties for your hexgrid using:
-//        - an expression
-//        - The COUNT attribute
-//        - The maximum number of collisions found in a hexagon
-//      Add a legend and additional functionality including pop-up windows
+        feature.properties.collisions.forEach(collision => {
+            if (collision.properties.INJURY == 'Major') {
+                feature.properties.MAJOR++;
+            } else if (collision.properties.INJURY == 'Fatal') {
+                feature.properties.FATAL++;
+            }
+        });
 
+        if (feature.properties.COUNT > maxtotal) {
+            maxtotal = feature.properties.COUNT;
+        };
+        if (feature.properties.MAJOR > maxmajor) {
+            maxmajor = feature.properties.MAJOR;
+        };
+        if (feature.properties.FATAL > maxfatal) {
+            maxfatal = feature.properties.FATAL;
+        };
 
+    });
+
+    console.log(
+        'Max Overall: ' + maxtotal,
+        'Max Major Injury: ' + maxmajor,
+        'Max Fatal Injury: ' + maxfatal
+    );
+
+    map.addSource('overall', {
+        type: 'geojson',
+        data: overall
+    });
+
+    map.addLayer({
+        'id': 'overall',
+        'type': 'fill',
+        'source': 'overall',
+        paint: {
+            'fill-color': [
+                'case',
+                ['==', ['get', 'COUNT'], 0], 'rgba(0,0,0,0)',
+                ['step', ['get', 'COUNT'],
+                '#FF8888', 30,
+                '#F43030', 60,
+                '#C60000']
+            ],
+            'fill-opacity': 0.6
+        }
+    });
+
+});
