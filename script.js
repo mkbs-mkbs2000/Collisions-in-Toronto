@@ -104,6 +104,15 @@ map.on('load', () => {
     // adding navigation controls
     map.addControl(new mapboxgl.NavigationControl({showCompass: false}), 'top-right');
 
+    // adding mapbox geocoder
+    map.addControl(
+        new MapboxGeocoder({
+            accessToken: mapboxgl.accessToken,
+            mapboxgl: mapboxgl,
+            place: ['Toronto', 'East York', 'Etobicoke', 'North York', 'Scarborough', 'York'] // Restrict search to former municipalities in the City of Toronto
+        }),
+    );
+
     // When map loads, popup message to inform readers how to use the website, toggling between points and returning to default extent
     const welcomeModal = new bootstrap.Modal(document.getElementById('welcomeModal'));
     welcomeModal.show();
