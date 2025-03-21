@@ -109,7 +109,12 @@ map.on('load', () => {
         new MapboxGeocoder({
             accessToken: mapboxgl.accessToken,
             mapboxgl: mapboxgl,
-            place: ['Toronto', 'East York', 'Etobicoke', 'North York', 'Scarborough', 'York'] // Restrict search to former municipalities in the City of Toronto
+            bbox: [
+                rescaled.geometry.coordinates[0][0][0],
+                rescaled.geometry.coordinates[0][0][1],
+                rescaled.geometry.coordinates[0][2][0],
+                rescaled.geometry.coordinates[0][2][1]
+            ] // Restrict search to the bounding box created above
         }),
     );
 
